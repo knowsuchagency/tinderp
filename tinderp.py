@@ -1,67 +1,52 @@
 from __future__ import print_function
-from pprint import pprint
-from pymongo import MongoClient
 import logging
 import pynder
 
-def normalize(user, wanted_attributes=None):
+def get_matches(session):
     """
-    Convert a User object to a dictionary based on the wanted attributes.
-    Return None if User can't be marshalled into a dictionary.
+    Return a list of user dictionaries from matches.
     """
-    wanted_attributes = wanted_attributes or ['name',
-                                              'id',
-                                              'instagram_username',
-                                              'age',
-                                              'distance_km',
-                                              'bio',
-                                              'photos']
-    # skip profiles without names
-    if getattr(user, 'name', None) is None:
-        return None
 
-    dictionary = {}
-    for attr in wanted_attributes:
-        try:
-            key, value = attr, getattr(user, attr, None)
-            # rename 'id' to '_id' so that it becomes the index in mongodb
-            if key == 'id': key = '_id'
-        except Exception as e:
-            logging.warning(e)
-        dictionary[key] = value
+    matches = [m.user.dict() for m in session.matches(filter_empty_matches=True)]
+    matches["_id"] = matches.pop("id")
 
-    return dictionary
+def get_hopefuls(session, limit=10):
+    """
+    Return a list of user dictionaries from hopefuls.
 
-client = MongoClient()
-db = client.tinderp
-session = pynder.Session("1165230333",
-                         "CAAGm0PX4ZCpsBAHXfAZBKUuVbihBK87NKPegNZB9ypmIvbaxCSGc6ZB6BmMSeUTEujO0vCjJkq9kVCy1IZB9GPVlQZCAtvzAN5AOHDpZBWQRL0e1VnOqYuK9yZAh11i8TpX5l94PmjsrXBcJeJw9z9SZCAsn41RaqpwJ5iKOKXkyBsZCFL3v13VkF42P575DN26NNrHPgVxfYMC4CLIsVDifbE")
+    Likes them on the way in :)
+    """
+    result = []
+    hopefuls = session.nearby_users(limit=limit)
+    for hopeful in hopefuls:
+        hopeful.like()
+        print("Just liked:", hopeful)
 
-wanted_attributes = ['name',
-                     'id',
-                     'instagram_username',
-                     'age',
-                     'distance_km',
-                     'bio',
-                     'photos']
-
-match_collection = db.matches
-matches = session.matches()
-normalized_matches = []
-print()
-for match in matches:
-    d = {}
-    for attr in wanted_attributes:
-        try:
-            key, value = attr, getattr(match.user, attr, None)
-            if key == 'id': key = '_id'
-        except Exception as e:
-            logging.warning(e)
-        d[key] = value
-    if d['name'] is not None:
-        normalized_matches.append(d)
+    for hopeful in hopefuls:
+        d = hopeful.dict()
+        d["_id"] = d.pop("id")
+        result.append(d)
+    return result
 
 
-print('\n' * 4)
-pprint(normalized_matches)
-[match_collection.replace_one({'_id': match['_id']}, match, upsert=True) for match in normalized_matches]
+def persist(collection, user):
+    collection.replace_one({"_id": user["_id"]}, user, upsert=True)
+
+if __name__ == "__main__":
+    from pprint import pprint
+    from pymongo import MongoClient
+
+    session = pynder.Session("1165230333",
+                             "CAAGm0PX4ZCpsBAIXjO1ARhwBjiUtQpMc1JfKO8M82QIO8SVPmmZCCX0ZBYhBnV8689dRlDRsAGEWsomBj858o0OC3ZCqG0tCRm6ZA8IuRbHiQ9AxxJyHyFJwR2eh20xEpOZAyZAAaJ684JKhQpmX3ZBUAmHGWDfFAyzk3Aepuro9VUW7v18QaXgJ6ZCULxXy43HHBHBwMUOsR5kNi9l3V1HDRsBRtvmuVZABLtiL8ZCnbe8DCXuBK6NkePk")
+    client = MongoClient()
+    db = client.tinderp
+    match_collection = db.matches
+    hopefuls_collection = db.hopefuls
+
+    hopefuls = get_hopefuls(session, limit=100)
+    while hopefuls:
+        print("liked {} people".format(len(hopefuls)))
+        for hopeful in hopefuls:
+            persist(hopefuls_collection, hopeful)
+            hopefuls = get_hopefuls(session, limit=100)
+    # pprint(hopefuls)
