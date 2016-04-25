@@ -48,5 +48,6 @@ if __name__ == "__main__":
         print("liked {} people".format(len(hopefuls)))
         for hopeful in hopefuls:
             persist(hopefuls_collection, hopeful)
-            hopefuls = get_hopefuls(session, limit=100)
+            
+        hopefuls = get_hopefuls(session, limit=100)
     # pprint(hopefuls)
