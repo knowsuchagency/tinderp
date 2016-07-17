@@ -26,8 +26,8 @@ def get_hopefuls(session, limit=10, verbose=False):
             try:
                 print("Just liked:", hopeful)
             except UnicodeEncodeError as e:
-                hopeful = unicode(hopeful.__str__(), errors='ignore')
-                print("Just liked:", hopeful)
+                print(e)
+                print("Just liked:", 'some person')
 
 
     for hopeful in hopefuls:
@@ -40,7 +40,7 @@ def get_hopefuls(session, limit=10, verbose=False):
 def persist(collection, user):
     collection.replace_one({"_id": user["_id"]}, user, upsert=True)
 
-if __name__ == "__main__":
+def main():
     from pprint import pprint
     from pymongo import MongoClient
     from six.moves import configparser
@@ -57,10 +57,18 @@ if __name__ == "__main__":
     match_collection = db.matches
     hopefuls_collection = db.hopefuls
 
-    hopefuls = get_hopefuls(session, limit=100, verbose=True)
+    hopefuls = get_hopefuls(session, limit=10, verbose=True)
     while hopefuls:
         print("liked {} people".format(len(hopefuls)))
         for hopeful in hopefuls:
             persist(hopefuls_collection, hopeful)
 
-        hopefuls = get_hopefuls(session, limit=100, verbose=True)
+        try:
+            hopefuls = get_hopefuls(session, limit=10, verbose=True)
+        except pynder.errors.RequestError as e:
+            print(e)
+            main()
+
+if __name__ == "__main__":
+    input("Did you turn on MongoDB?")
+    main()
