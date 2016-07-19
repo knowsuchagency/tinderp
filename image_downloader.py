@@ -2,6 +2,7 @@ from pymongo import MongoClient
 from pathlib import Path
 from operator import itemgetter
 from io import BytesIO
+from PIL import Image
 import requests
 
 if __name__ == "__main__":
@@ -9,7 +10,8 @@ if __name__ == "__main__":
     client = MongoClient()
     col = client.tinderp.hopefuls
     mention_snapchat = list(col.find(
-        {'mentions_snapchat': True}
+        {'mentions_snapchat': True},
+        limit=10
     ))
 
     for snapper in mention_snapchat:
@@ -35,4 +37,11 @@ if __name__ == "__main__":
             path = Path(folder, name)
             if not path.exists():
                 photo = requests.get(photo_url)
-                path.write_bytes(photo.content)
+                file_object = BytesIO(photo.content)
+                try:
+                    Image.open(file_object).load()
+                    path.write_bytes(photo.content)
+                    print('saved successfully at', path)
+                except IOError as e:
+                    print(e)
+
