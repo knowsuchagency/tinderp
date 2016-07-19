@@ -1,12 +1,10 @@
 from __future__ import print_function
-import logging
 import pynder
 
 def get_matches(session):
     """
     Return a list of user dictionaries from matches.
     """
-
     matches = [m.user.dict() for m in session.matches(filter_empty_matches=True)]
     matches["_id"] = matches.pop("id")
 
@@ -17,19 +15,23 @@ def get_hopefuls(session, limit=10, verbose=False):
     Likes them on the way in :)
     """
     result = []
-    hopefuls = session.nearby_users(limit=limit)
-    for hopeful in hopefuls:
-        hopeful.like()
+    hopefuls = list(session.nearby_users(limit=limit))
+    # We have to ensure that we don't like people too quickly
+    unliked = hopefuls.copy()
+    while unliked:
+        hopeful = unliked[-1]
+        if not session.can_like_in > 0:
+            hopeful.like()
+            just_liked = unliked.pop()
+            if verbose:
+                try:
+                    print("Just liked:", hopeful)
+                except UnicodeEncodeError as e:
+                    print(e)
+                    print("Just liked:", 'some person')
 
-    if verbose:
-        for hopeful in hopefuls:
-            try:
-                print("Just liked:", hopeful)
-            except UnicodeEncodeError as e:
-                print(e)
-                print("Just liked:", 'some person')
 
-
+    # change the id attribute to _id once again
     for hopeful in hopefuls:
         d = hopeful.dict()
         d["_id"] = d.pop("id")
@@ -40,8 +42,10 @@ def get_hopefuls(session, limit=10, verbose=False):
 def persist(collection, user):
     collection.replace_one({"_id": user["_id"]}, user, upsert=True)
 
-def main():
-    from pprint import pprint
+
+if __name__ == "__main__":
+    input("Did you turn on MongoDB?")
+
     from pymongo import MongoClient
     from six.moves import configparser
     import os
@@ -63,12 +67,4 @@ def main():
         for hopeful in hopefuls:
             persist(hopefuls_collection, hopeful)
 
-        try:
-            hopefuls = get_hopefuls(session, limit=10, verbose=True)
-        except pynder.errors.RequestError as e:
-            print(e)
-            main()
-
-if __name__ == "__main__":
-    input("Did you turn on MongoDB?")
-    main()
+        hopefuls = get_hopefuls(session, limit=10, verbose=True)
